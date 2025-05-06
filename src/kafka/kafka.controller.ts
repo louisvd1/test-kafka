@@ -6,25 +6,70 @@ import { faker } from '@faker-js/faker';
 export class KafkaController {
   constructor(private readonly producerService: ProducerService) {}
 
-  // Gửi dữ liệu giả lập mặc định
+  // Gửi dữ liệu giả lập mặc định đến test-topic
   @Post('send')
   async sendFakeData() {
     const fakeData = this.generateFakeData();
-    await this.producerService.produceMessage(fakeData);
+    await this.producerService.sendMessage('test-topic', fakeData);
     return { message: 'Fake data sent to Kafka', data: fakeData };
   }
 
-  // Gửi dữ liệu tùy chọn (body)
+  // Gửi dữ liệu tuỳ chỉnh đến topic
   @Post('send-custom')
   async sendCustomData(
     @Body() data: any,
     @Query('topic') topic = 'test-topic',
   ) {
-    await this.producerService.produce({
-      topic,
-      messages: [{ value: JSON.stringify(data) }],
-    });
+    await this.producerService.sendMessage(topic, data);
     return { message: `Custom data sent to Kafka topic '${topic}'`, data };
+  }
+
+  // Gửi batch dữ liệu giả lập
+  @Post('send-batch')
+  async sendBatchFakeData(@Query('count') count = 5) {
+    const batch = Array.from({ length: Number(count) }, () =>
+      this.generateFakeData(),
+    );
+    await this.producerService.sendBatchMessages('test-topic', batch);
+    return { message: `Batch of ${count} messages sent`, batch };
+  }
+
+  // Gửi dữ liệu với retry logic
+  @Post('send-retry')
+  async sendWithRetry(@Body() data: any, @Query('topic') topic = 'test-topic') {
+    const success = await this.producerService.sendWithRetry(topic, data);
+    return {
+      message: success
+        ? `Sent with retry success to topic '${topic}'`
+        : `Retry failed for topic '${topic}'`,
+      data,
+    };
+  }
+
+  // Gửi dữ liệu sau delay
+  @Post('send-delay')
+  async sendWithDelay(
+    @Body() data: any,
+    @Query('delay') delay = 2000,
+    @Query('topic') topic = 'test-topic',
+  ) {
+    await this.producerService.sendWithDelay(topic, data, Number(delay));
+    return {
+      message: `Message scheduled with ${delay}ms delay to topic '${topic}'`,
+      data,
+    };
+  }
+
+  // Tạo topic mới (nếu chưa tồn tại)
+  @Post('create-topic')
+  async createTopic(
+    @Query('topic') topic: string,
+    @Query('partitions') partitions = 1,
+  ) {
+    await this.producerService.ensureTopic(topic, Number(partitions));
+    return {
+      message: `Topic '${topic}' ensured (created if missing)`,
+    };
   }
 
   private generateFakeData() {

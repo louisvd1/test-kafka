@@ -32,9 +32,13 @@ export class ProducerService implements OnModuleInit, OnApplicationShutdown {
   }
 
   async onApplicationShutdown() {
-    await this.producer.disconnect();
-    await this.admin.disconnect();
-    this.logger.log('Kafka producer and admin disconnected');
+    try {
+      await this.producer.disconnect();
+      await this.admin.disconnect();
+      this.logger.log('Kafka producer and admin disconnected');
+    } catch (error) {
+      this.logger.error('Error during shutdown: ' + error.message);
+    }
   }
 
   /**
@@ -91,7 +95,7 @@ export class ProducerService implements OnModuleInit, OnApplicationShutdown {
         return true;
       } catch (e) {
         this.logger.warn(`Retry ${i}/${retries} failed: ${e.message}`);
-        await new Promise((res) => setTimeout(res, 500 * i));
+        await new Promise((res) => setTimeout(res, 500 * i)); // delay before retry
       }
     }
     return false;
@@ -113,22 +117,31 @@ export class ProducerService implements OnModuleInit, OnApplicationShutdown {
     const topics = await this.admin.listTopics();
     if (!topics.includes(topic)) {
       await this.admin.createTopics({
-        topics: [{ topic, numPartitions }],
+        topics: [{ topic, numPartitions }], // create topic if missing
       });
       this.logger.log(`Created topic: ${topic}`);
     }
   }
 
+  // Refactor produceMessage to not reconnect every time
   async produceMessage(data: any) {
-    await this.producer.connect();
-    await this.producer.send({
-      topic: 'test-topic',
-      messages: [{ value: JSON.stringify(data) }],
-    });
-    console.log('Produced:', data);
+    try {
+      await this.producer.send({
+        topic: 'test-topic',
+        messages: [{ value: JSON.stringify(data) }],
+      });
+      this.logger.log(`Produced message: ${JSON.stringify(data)}`);
+    } catch (error) {
+      this.logger.error(`Failed to produce message: ${error.message}`);
+    }
   }
 
   async produce(record: ProducerRecord) {
-    await this.producer.send(record);
+    try {
+      await this.producer.send(record);
+      this.logger.log('Produced record: ' + JSON.stringify(record));
+    } catch (error) {
+      this.logger.error(`Failed to produce record: ${error.message}`);
+    }
   }
 }
