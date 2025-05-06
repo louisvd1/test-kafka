@@ -115,6 +115,7 @@ export class ProducerService implements OnModuleInit, OnApplicationShutdown {
    */
   async ensureTopic(topic: string, numPartitions = 1) {
     const topics = await this.admin.listTopics();
+    console.log('topics', topics);
     if (!topics.includes(topic)) {
       await this.admin.createTopics({
         topics: [{ topic, numPartitions }], // create topic if missing
