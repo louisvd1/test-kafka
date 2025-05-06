@@ -1,6 +1,7 @@
-import { Controller, Post, Body, Query } from '@nestjs/common';
+import { Controller, Post, Body, Query, Get, Delete } from '@nestjs/common';
 import { ProducerService } from './producer.service';
 import { faker } from '@faker-js/faker';
+import { CreateTopicDto } from 'src/utils/dto/create-topic.dto';
 
 @Controller('kafka')
 export class KafkaController {
@@ -70,6 +71,51 @@ export class KafkaController {
     return {
       message: `Topic '${topic}' ensured (created if missing)`,
     };
+  }
+
+  @Post('create-topics')
+  async createTopicIfNotExists(
+    @Query('topic') topic: string,
+    @Query('partitions') partitions = '1',
+    @Query('replication') replication = '1',
+  ) {
+    const result = await this.producerService.createTopicIfNotExists(
+      topic,
+      parseInt(partitions),
+      parseInt(replication),
+    );
+    return result;
+  }
+
+  @Post('create-topic-advanced')
+  async createTopicAdvanced(@Body() dto: CreateTopicDto) {
+    return this.producerService.createAdvancedTopic(dto);
+  }
+
+  @Get('topics')
+  async listTopics() {
+    return this.producerService.listTopicsDetails();
+  }
+
+  @Delete('topic')
+  async deleteTopic(@Query('topic') topic: string) {
+    return this.producerService.deleteTopic(topic);
+  }
+
+  @Post('send-with-headers')
+  async sendWithHeaders(
+    @Body() body: { topic: string; value: any; headers: any },
+  ) {
+    return this.producerService.sendMessageWithHeaders(
+      body.topic,
+      body.value,
+      body.headers,
+    );
+  }
+
+  @Get('cluster-info')
+  async getClusterInfo() {
+    return this.producerService.getClusterInfo();
   }
 
   private generateFakeData() {

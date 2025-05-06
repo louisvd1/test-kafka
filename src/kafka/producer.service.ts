@@ -3,6 +3,7 @@ import {
   OnApplicationShutdown,
   OnModuleInit,
   Logger,
+  ConflictException,
 } from '@nestjs/common';
 import {
   Kafka,
@@ -12,6 +13,7 @@ import {
   logLevel,
   Admin,
 } from 'kafkajs';
+import { CreateTopicDto } from 'src/utils/dto/create-topic.dto';
 
 @Injectable()
 export class ProducerService implements OnModuleInit, OnApplicationShutdown {
@@ -144,5 +146,114 @@ export class ProducerService implements OnModuleInit, OnApplicationShutdown {
     } catch (error) {
       this.logger.error(`Failed to produce record: ${error.message}`);
     }
+  }
+
+  async createTopicIfNotExists(
+    topic: string,
+    numPartitions = 1,
+    replicationFactor = 1,
+  ): Promise<{ message: string; topic: string }> {
+    try {
+      const existingTopics = await this.admin.listTopics();
+
+      if (existingTopics.includes(topic)) {
+        this.logger.warn(`Topic '${topic}' already exists`);
+        return { message: `Topic '${topic}' already exists`, topic };
+      }
+
+      const created = await this.admin.createTopics({
+        topics: [
+          {
+            topic,
+            numPartitions,
+            replicationFactor,
+            configEntries: [
+              { name: 'cleanup.policy', value: 'delete' },
+              { name: 'retention.ms', value: '86400000' }, // 1 day
+            ],
+          },
+        ],
+        waitForLeaders: true,
+      });
+
+      if (created) {
+        this.logger.log(
+          `Created topic '${topic}' with ${numPartitions} partitions`,
+        );
+        return { message: `Topic '${topic}' created successfully`, topic };
+      } else {
+        this.logger.error(`Failed to create topic '${topic}'`);
+        return { message: `Failed to create topic '${topic}'`, topic };
+      }
+    } catch (err) {
+      this.logger.error(`Error creating topic: ${err.message}`);
+      throw err;
+    }
+  }
+
+  async createAdvancedTopic(dto: CreateTopicDto) {
+    const exists = (await this.admin.listTopics()).includes(dto.topic);
+    if (exists) {
+      throw new ConflictException(`Topic ${dto.topic} already exists`);
+    }
+
+    await this.admin.createTopics({
+      topics: [
+        {
+          topic: dto.topic,
+          numPartitions: dto.partitions,
+          replicationFactor: dto.replication,
+          configEntries: dto.configs || [],
+        },
+      ],
+    });
+
+    this.logger.log(`Created topic ${dto.topic}`);
+    return { message: `Created topic ${dto.topic}` };
+  }
+
+  async listTopicsDetails() {
+    const topics = await this.admin.listTopics();
+    const metadata = await this.admin.fetchTopicMetadata({ topics });
+
+    return metadata.topics.map((topic) => ({
+      name: topic.name,
+      partitions: topic.partitions.length,
+      partitionInfo: topic.partitions,
+    }));
+  }
+
+  async deleteTopic(topic: string) {
+    await this.admin.deleteTopics({ topics: [topic] });
+    this.logger.warn(`Deleted topic: ${topic}`);
+    return { message: `Deleted topic: ${topic}` };
+  }
+
+  async sendMessageWithHeaders(
+    topic: string,
+    value: any,
+    headers: Record<string, string>,
+  ) {
+    await this.producer.send({
+      topic,
+      messages: [
+        {
+          value: JSON.stringify(value),
+          headers,
+        },
+      ],
+    });
+
+    this.logger.log(`Sent message to ${topic} with headers`);
+    return { message: 'Sent with headers' };
+  }
+
+  async getClusterInfo() {
+    const desc = await this.admin.describeCluster();
+    return {
+      clusterId: desc.clusterId,
+      controller: desc.controller,
+      brokers: desc.brokers.map((b) => `${b.host}:${b.port}`),
+    };
   }
 }
