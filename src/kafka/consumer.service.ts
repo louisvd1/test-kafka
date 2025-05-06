@@ -14,7 +14,12 @@ export class ConsumerService implements OnModuleInit, OnApplicationShutdown {
   private readonly consumer: Consumer = this.kafka.consumer({
     groupId: 'consumer-group',
   });
-  private readonly esClient = new Client({ node: 'http://localhost:9200' });
+  private readonly esClient = new Client({
+    node: 'http://localhost:9200',
+    headers: {
+      accept: 'application/vnd.elasticsearch+json;compatible-with=8',
+    },
+  });
 
   async onModuleInit() {
     await this.connectConsumer();
@@ -39,18 +44,22 @@ export class ConsumerService implements OnModuleInit, OnApplicationShutdown {
   }
 
   private async runConsumer() {
+    console.log('consumer is running');
     await this.consumer.run({
       eachMessage: async (payload: EachMessagePayload) => {
         try {
           const { topic, message } = payload;
           const value = message.value?.toString();
+          console.log('valueeeeeeee', value);
           if (!value) {
             this.logger.warn(`Message with null value from topic: ${topic}`);
             return;
           }
+          console.log('consumer is checking  ');
 
           this.logger.log(`Consumed from ${topic}: ${value}`);
           await this.handleMessage(topic, value);
+          console.log('consumer is done ');
         } catch (error) {
           this.logger.error('Error handling message:', error);
         }
@@ -60,6 +69,7 @@ export class ConsumerService implements OnModuleInit, OnApplicationShutdown {
 
   private async handleMessage(topic: string, rawValue: string) {
     const data = JSON.parse(rawValue);
+    console.log('dataaaa', data);
 
     switch (topic) {
       case 'test-topic':
