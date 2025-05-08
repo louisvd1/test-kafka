@@ -2,10 +2,14 @@ import { Controller, Post, Body, Query, Get, Delete } from '@nestjs/common';
 import { ProducerService } from './producer.service';
 import { faker } from '@faker-js/faker';
 import { CreateTopicDto } from 'src/utils/dto/create-topic.dto';
+import { MultiProducerService } from './multi-producer.service';
 
 @Controller('kafka')
 export class KafkaController {
-  constructor(private readonly producerService: ProducerService) {}
+  constructor(
+    private readonly producerService: ProducerService,
+    private readonly multiProducerService: MultiProducerService,
+  ) {}
 
   // Gửi dữ liệu giả lập mặc định đến test-topic
   @Post('send')
@@ -116,6 +120,12 @@ export class KafkaController {
   @Get('cluster-info')
   async getClusterInfo() {
     return this.producerService.getClusterInfo();
+  }
+
+  @Post('send-multi')
+  async sendWithMultiProducer(@Body() data: any) {
+    await this.multiProducerService.sendMessage('multi-topic', data);
+    return { message: 'Sent via MultiProducer', data };
   }
 
   private generateFakeData() {
