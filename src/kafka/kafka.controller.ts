@@ -128,6 +128,52 @@ export class KafkaController {
     return { message: 'Sent via MultiProducer', data };
   }
 
+  @Post('send')
+  send(@Body() body: { topic: string; value: any }) {
+    return this.multiProducerService.sendMessage(body.topic, body.value);
+  }
+
+  @Post('send-batch')
+  sendBatch(@Body() body: { topic: string; values: any[] }) {
+    return this.multiProducerService.sendMessages(body.topic, body.values);
+  }
+
+  @Post('send-keyed')
+  sendWithKey(@Body() body: { topic: string; key: string; value: any }) {
+    return this.multiProducerService.sendMessageWithKey(
+      body.topic,
+      body.key,
+      body.value,
+    );
+  }
+
+  @Post('send-partition')
+  sendToPartition(
+    @Body() body: { topic: string; partition: number; value: any },
+  ) {
+    return this.multiProducerService.sendMessageToPartition(
+      body.topic,
+      body.partition,
+      body.value,
+    );
+  }
+
+  @Post('send-headers')
+  sendWithHeadersMuti(
+    @Body()
+    body: {
+      topic: string;
+      value: any;
+      headers: Record<string, string>;
+    },
+  ) {
+    return this.multiProducerService.sendMessageWithHeaders(
+      body.topic,
+      body.value,
+      body.headers,
+    );
+  }
+
   private generateFakeData() {
     return {
       id: faker.string.uuid(),
